@@ -1,11 +1,11 @@
 
 from django.http import HttpResponse
-from django.shortcuts import render
+from django.shortcuts import redirect, render
 from django.views import View
-from .forms import CustomerRegisterationForm, LoginForm
+from .forms import CustomerProfileForm, CustomerRegisterationForm, LoginForm
 from django.contrib import messages
 
-from .models import Product 
+from .models import Cart, Customer, Product 
 # Create your views here.
 # def home(request):
 #     return render(request, 'realstore/home.html')
@@ -29,8 +29,27 @@ def mobile(request, data=None):
 
     return render(request, 'realstore/mobile.html', {'mobiles':mobiles})
 
-def profile(request):
-    return render(request, 'realstore/profile.html')
+# def profile(request):
+#     return render(request, 'realstore/profile.html')
+
+class CustomerProfileView(View):
+    def get(self, request):
+        form = CustomerProfileForm()    
+        return render(request, 'realstore/profile.html', {'form': form, 'active': 'btn-primary'})
+
+    def post(self, request):
+        form=CustomerProfileForm(request.POST)
+        if form.is_valid():
+            user=request.user
+            name = form.cleaned_data['name']
+            locality = form.cleaned_data['locality']
+            city = form.cleaned_data['city']
+            state = form.cleaned_data['state']
+            zipcode = form.cleaned_data['zipcode']
+            data = Customer(user=user, name=name, locality=locality, city=city, state=state, zipcode=zipcode)
+            data.save()
+            messages.success(request, 'Profile Updated Succesfully!')
+        return render(request, 'realstore/profile.html', {'form': form, 'active': 'btn-primary'})
 
 # def customerregistration(request):
 #     return render(request, 'realstore/customerregistration.html')
@@ -57,7 +76,28 @@ class CustomerRegistrationView(View):
         
 
 def addToCart(request):
-    return render(request, 'realstore/addtocart.html')
+    user=request.user
+    product_id=request.GET.get('prod_id')
+    product = Product.objects.get(id=product_id)
+    Cart(user=user, product=product).save()
+    return redirect('/cart')
+    
+
+def ShowCart(request):
+    if request.user.is_authenticated:
+        user=request.user
+        cart=Cart.objects.filter(user=user)
+        total_amount=0.0
+        amount=0.0
+        shipping_amount=50.0
+        if cart:
+            for p in cart:
+                if p.user==user:
+                    amount=p.product.discounted_price+amount
+                    total_amount=amount+shipping_amount
+            return render(request, 'realstore/addtocart.html', {'carts': cart, 'amount': amount, 'total_amount': total_amount, 'shipping_amount': shipping_amount})
+        else:
+            return render(request, 'realstore/emptycart.html')
 
 
 def orders(request):
@@ -72,7 +112,8 @@ class productDetailView(View):
 
 
 def address(request):
-    return render(request, 'realstore/address.html')
+    address = Customer.objects.filter(user=request.user)
+    return render(request, 'realstore/address.html', {'address': address, 'active': 'btn-primary'})
 
 def checkout(request):
     return render(request, 'realstore/checkout.html')
